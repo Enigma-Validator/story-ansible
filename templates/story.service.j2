@@ -1,0 +1,15 @@
+[Unit]
+Description=Story
+After=network-online.target
+
+[Service]
+User={{ user }}
+ExecStart=bash -l -c 'story run'
+Restart=always
+RestartSec=3
+LimitNOFILE=4096
+KillSignal=SIGKILL
+SendSIGKILL=yes
+
+[Install]
+WantedBy=multi-user.target
