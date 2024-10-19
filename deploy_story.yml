@@ -1,0 +1,80 @@
+---
+- name: Setup Story Geth and Story service
+  hosts: all
+  become: yes
+  vars:
+    user: "root"  
+    moniker_name: "test-ansible"  
+    geth_version: "v0.9.4" 
+
+  tasks:
+    - name: Download geth-linux-amd64
+      get_url:
+        url: "https://github.com/piplabs/story-geth/releases/download/{{ geth_version }}/geth-linux-amd64"
+        dest: /usr/local/bin/geth
+        mode: '0755'
+
+    - name: Create story-geth.service from template
+      template:
+        src: story-geth.service.j2
+        dest: /etc/systemd/system/story-geth.service
+        mode: '0644'
+
+    - name: Download Story client
+      get_url:
+        url: https://story-geth-binaries.s3.us-west-1.amazonaws.com/story-public/story-linux-amd64-0.11.0-aac4bfe.tar.gz
+        dest: /tmp/
+      register: download_info
+
+    - name: Extract story-linux-amd64
+      unarchive:
+        src: "{{ download_info.dest }}"
+        dest: /tmp/
+        remote_src: yes
+
+    - name: Move story binary to /usr/local/bin
+      command: mv /tmp/{{ download_info.dest | basename | replace('.tar.gz', '') }}/story /usr/local/bin/story
+
+
+    - name: Set executable permissions on story binary
+      file:
+        path: /usr/local/bin/story
+        mode: '0755'
+
+    - name: Initialize the Story network
+      command: "story init --network iliad --moniker {{ moniker_name }}"
+      args:
+        creates: /root/.story
+
+    - name: Create story.service from template
+      template:
+        src: story.service.j2
+        dest: /etc/systemd/system/story.service
+        mode: '0644'
+
+    - name: Open ports 30303 and 26656 using UFW
+    ufw:
+      rule: allow
+      port: "{{ item }}"
+      proto: tcp
+    loop:
+      - 30303
+      - 26656
+
+    - name: Reload systemd to apply new services
+      command: systemctl daemon-reload
+
+    - name: Enable and start story-geth service
+      systemd:
+        name: story-geth
+        enabled: yes
+        state: started
+
+    - name: Enable and start story service
+      systemd:
+        name: story
+        enabled: yes
+        state: started
+
+
+
